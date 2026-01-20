@@ -1,6 +1,12 @@
 import pandas as pd
 import osmnx as ox
 
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 1000)
+
+ox.settings.log_console = True
+ox.settings.use_cache = True
+
 # Собираем города и районы - вручную, пока не найден более оптимальный способ
 city_and_distr = pd.DataFrame(columns=['address'],
                               data=['Северное Тушино, Москва, Россия',
@@ -21,9 +27,6 @@ city_and_distr = pd.DataFrame(columns=['address'],
 
 # Здесь по нескольким адресам
 # 1.1 UPGRADE: Полный код для нескольких районов OSMnx
-
-import osmnx as ox
-import pandas as pd
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', 1000)
