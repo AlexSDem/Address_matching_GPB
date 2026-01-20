@@ -1,3 +1,6 @@
+import pandas as pd
+import osmnx as ox
+
 # Собираем города и районы - вручную, пока не найден более оптимальный способ
 city_and_distr = pd.DataFrame(columns=['address'],
                               data=['Северное Тушино, Москва, Россия',
