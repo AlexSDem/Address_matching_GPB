@@ -1,46 +1,47 @@
-# Очищаем строки
+"""Baseline model step.
 
-import re
+This file used to build a TF-IDF + NearestNeighbors index directly.
+Now we wrap it into a small reusable matcher class (see src/matcher.py).
 
-def clean_address(text):
-    text = text.lower()
-    # Убираем всё, кроме букв и цифр (опционально)
-    text = re.sub(r'[^а-я0-9\s]', '', text)
-    return text
+Expected inputs from previous steps:
+- df_ideal_address (DataFrame) with column 'united_addr'
 
-# Собственно механизм
+Outputs (created in the current Python session):
+- matcher (AddressMatcher) fitted on 'united_addr'
+"""
+
+import os
+import sys
 
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.neighbors import NearestNeighbors
 
-# 1. Загружаем эталоны
-# refs = ["г. Москва, ул. Ленина, д. 19", "г. Москва, ул. Лесная, д. 5", "г. Казань, ул. Пушкина, д. 1"]
-# df_ref = pd.DataFrame(refs, columns=['address'])
-df_ref = pd.DataFrame(df_ideal_address['united_addr'])
+# Allow running this file from within the /code folder or from notebooks
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT not in sys.path:
+    sys.path.append(_ROOT)
 
-# 2. Векторизация (разбиваем на кусочки по 3 буквы)
-# analyzer='char_wb' создает н-граммы учитывая границы слов
-vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4))
-ref_vectors = vectorizer.fit_transform(df_ref['united_addr'])
+from src.matcher import AddressMatcher
 
-# 3. Индекс для быстрого поиска (Ball Tree или Brute Force для малых данных)
-nbrs = NearestNeighbors(n_neighbors=1, metric='cosine', n_jobs=-1).fit(ref_vectors)
 
-# 4. Функция поиска
-def match_address(messy_address):
-    # Превращаем вход в вектор
-    input_vec = vectorizer.transform([messy_address])
-    # Ищем ближайшего соседа
-    distances, indices = nbrs.kneighbors(input_vec)
+# 1) Reference corpus
+df_ref = pd.DataFrame({"united_addr": df_ideal_address["united_addr"]})
 
-    best_match_index = indices[0][0]
-    similarity = 1 - distances[0][0] # переводим расстояние в сходство (0..1)
 
-    return df_ref.iloc[best_match_index]['united_addr'], similarity
+# 2) Build matcher (top_k>1 allows reranking and Recall@k evaluation)
+matcher = AddressMatcher(
+    ngram_range=(2, 4),
+    analyzer="char_wb",
+    top_k=10,
+    w_cosine=0.6,
+    w_fuzz=0.4,
+    do_normalize=True,
+).fit(df_ref["united_addr"].tolist())
 
-# ТЕСТ
-bad_address = "ул труд, челяба"
-match, score = match_address(bad_address)
-print(f"Вход: {bad_address}")
-print(f"Найдено: {match} (Сходство: {score:.2f})")
+
+if __name__ == "__main__":
+    # Quick sanity-check
+    bad_address = "ул труд, челяба"
+    res = matcher.match_one(bad_address)
+    print(f"Вход: {bad_address}")
+    print(f"Найдено: {res.best}")
+    print(f"cosine={res.cosine_sim:.3f} fuzz={res.fuzz_score:.3f} final={res.final_score:.3f}")
