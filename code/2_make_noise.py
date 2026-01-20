@@ -1,9 +1,11 @@
-df_ideal_address = pd.DataFrame(df_all_districts['united_addr'].sample(n=100, random_state=42).reset_index(drop=True))
-
-# 2. применение nlpaug
 import nlpaug.augmenter.char as nac
 import json
 import os
+import pandas as pd
+
+df_ideal_address = pd.DataFrame(df_all_districts['united_addr'].sample(n=100, random_state=42).reset_index(drop=True))
+
+# 2. применение nlpaug
 
 # Карта смежных клавиш для стандартной раскладки ЙЦУКЕН
 ru_keyboard_map = {
