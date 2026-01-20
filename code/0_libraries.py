@@ -1,24 +1,11 @@
-!apt-get update
-!apt-get install -y osmium-tool
+!pip -q install --upgrade pip
 
-# 0. ставим основные либы
-!pip install osmnx pandas geopandas
-
-# 1. Обновляем pip и ставим Cython (нужен для сборки)
-!pip install --upgrade pip
-!pip install Cython
-
-# 2. Ставим pygeos (самая проблемная зависимость)
-!pip install pygeos
-
-# 3. Теперь ставим pyrosm
-!pip install pyrosm
+# СТАБИЛЬНЫЙ набор для baseline
+!pip -q install "osmnx>=1.8" "geopandas>=0.14" "shapely>=2.0" "scikit-learn>=1.3" "rapidfuzz>=3.0" "nlpaug>=1.1.11"
 
 # 4. ставим geocoder
 !pip install reverse_geocoder
-!pip install nlpaug
 !pip install natasha
-!pip install rapidfuzz
 
 import pandas as pd
 import numpy as np
