@@ -1,13 +1,47 @@
-import nlpaug.augmenter.char as nac
-import json
+"""
+Step 2: Create noisy queries from reference corpus.
+
+Input:
+- df_all_districts from Step 1 (in memory),
+  OR loads cache reference_osm.csv if df_all_districts is missing.
+
+Output:
+- df_ideal_address with columns:
+  - united_addr (ground truth)
+  - keyboard_noise
+  - random_insert
+"""
+
 import os
+import json
 import pandas as pd
+import nlpaug.augmenter.char as nac
 
-df_ideal_address = pd.DataFrame(df_all_districts['united_addr'].sample(n=100, random_state=42).reset_index(drop=True))
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CACHE_PATH = os.path.join(_ROOT, "reference_osm.csv")
 
-# 2. применение nlpaug
+# 1) Ensure df_all_districts exists
+if "df_all_districts" not in globals() or df_all_districts is None or len(df_all_districts) == 0:
+    if os.path.exists(CACHE_PATH):
+        df_all_districts = pd.read_csv(CACHE_PATH)
+        print(f"✅ Loaded cached reference: {CACHE_PATH} shape={df_all_districts.shape}")
+    else:
+        raise RuntimeError(
+            "df_all_districts is not defined and cache file reference_osm.csv not found.\n"
+            "Run: %run code/1_ideal_address.py (it will create df_all_districts and save cache)."
+        )
 
-# Карта смежных клавиш для стандартной раскладки ЙЦУКЕН
+if "united_addr" not in df_all_districts.columns:
+    raise RuntimeError("df_all_districts has no column 'united_addr'. Check code/1_ideal_address.py output.")
+
+# 2) Sample
+n = min(100, len(df_all_districts))
+df_ideal_address = pd.DataFrame(
+    df_all_districts["united_addr"].sample(n=n, random_state=42).reset_index(drop=True)
+)
+df_ideal_address.columns = ["united_addr"]
+
+# 3) Keyboard map (RU)
 ru_keyboard_map = {
     'й': ['ц', 'ф', '1', '2'], 'ц': ['й', 'у', 'ф', 'ы', '2', '3'], 'у': ['ц', 'к', 'ы', 'в', '3', '4'],
     'к': ['у', 'е', 'в', 'а', '4', '5'], 'е': ['к', 'н', 'а', 'п', '5', '6'], 'н': ['е', 'г', 'п', 'р', '6', '7'],
@@ -22,36 +56,25 @@ ru_keyboard_map = {
     'ю': ['д', 'ж', 'б', '.']
 }
 
-# Сохраняем в JSON файл
-with open('ru_keyboard.json', 'w', encoding='utf-8') as f:
+kb_path = os.path.join(_ROOT, "ru_keyboard.json")
+with open(kb_path, "w", encoding="utf-8") as f:
     json.dump(ru_keyboard_map, f, ensure_ascii=False)
 
-# --- Способ А: Имитация опечаток на клавиатуре (KeyboardAug) ---
-# lang='ru' имитирует русскую раскладку (йцукен).
-# Если нажать не ту кнопку, 'а' может замениться на 'п' или 'м'.
 aug_keyboard = nac.KeyboardAug(
-    model_path='ru_keyboard.json',
-    aug_char_p=0.2,  # Вероятность изменения символа (20%)
-    aug_word_p=0.1,  # Вероятность того, что слово будет затронуто (100% слов)
-    # lang='ru'        # Русская раскладка - не поддерживается :(
+    model_path=kb_path,
+    aug_char_p=0.2,
+    aug_word_p=0.1,  # 10% слов, а не 100%
 )
 
-# --- Способ Б: Вставка/Замена случайных символов (RandomCharAug) ---
-# action='insert' добавляет лишние символы
-# action='substitute' заменяет существующие
 aug_random = nac.RandomCharAug(
     action="insert",
     aug_char_p=0.2,
     aug_word_p=0.1,
-    spec_char='!@#%_123' # Можно задать свой набор символов для шума
+    spec_char="!@#%_123",
 )
 
-# Применяем
-# Обратите внимание: augment возвращает список, поэтому берем [0]
-try:
-    df_ideal_address['keyboard_noise'] = df_ideal_address['united_addr'].apply(lambda x: aug_keyboard.augment(x)[0])
-    df_ideal_address['random_insert'] = df_ideal_address['united_addr'].apply(lambda x: aug_random.augment(x)[0])
+df_ideal_address["keyboard_noise"] = df_ideal_address["united_addr"].apply(lambda x: aug_keyboard.augment(x)[0])
+df_ideal_address["random_insert"] = df_ideal_address["united_addr"].apply(lambda x: aug_random.augment(x)[0])
 
-    print(df_ideal_address)
-except Exception as e:
-    print(f"Ошибка: {e}")
+print("✅ df_ideal_address created:", df_ideal_address.shape)
+print(df_ideal_address.head(3))
