@@ -6,11 +6,3 @@
 # 4. ставим geocoder
 !pip install reverse_geocoder
 !pip install natasha
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-# import requests
-from curl_cffi import requests
-import json
