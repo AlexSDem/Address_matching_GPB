@@ -262,3 +262,102 @@ print("\nDemo example:")
 print(" query:", sample_query)
 print(" best :", sample_best)
 print(" score:", round(float(sample_score), 3))
+
+# =========================================================
+# Step 5: Interactive demo (A active, B commented)
+# =========================================================
+
+AUTO_THRESHOLD = 0.85  # порог авто-принятия матча (для демо можно менять)
+TOPK = 5               # показываем TOP-5 кандидатов
+
+def _print_topk_table(df_topk: pd.DataFrame) -> None:
+    # красивый вывод в Colab
+    if df_topk is None or len(df_topk) == 0:
+        print("Нет кандидатов.")
+        return
+
+    df_show = df_topk.copy()
+    df_show["cosine_sim"] = df_show["cosine_sim"].map(lambda x: round(float(x), 3))
+    df_show["fuzz_score"] = df_show["fuzz_score"].map(lambda x: round(float(x), 3))
+    df_show["final_score"] = df_show["final_score"].map(lambda x: round(float(x), 3))
+    print(df_show[["final_score", "cosine_sim", "fuzz_score", "candidate"]].to_string(index=False))
+
+
+# ----------------------------
+# Вариант A (АКТИВЕН): input()
+# ----------------------------
+print("\n================ DEMO: Interactive input (Variant A) ================")
+print("Введите адрес и получите лучший матч + TOP-5 кандидатов.")
+print("Пустая строка — выход.\n")
+
+while True:
+    user_q = input("Введите адрес: ").strip()
+    if not user_q:
+        print("Выход из демо.")
+        break
+
+    # TOP-5 кандидатов
+    top = matcher.match_one_topk(user_q, k=TOPK)
+
+    # лучший (top-1)
+    best = top.iloc[0]
+    verdict = "✅ AUTO-MATCH" if float(best["final_score"]) >= AUTO_THRESHOLD else "⚠️ MANUAL REVIEW"
+
+    print("\n--- Результат ---")
+    print("Query    :", user_q)
+    print("Best     :", best["candidate"])
+    print("Score    :", round(float(best["final_score"]), 3),
+          f"(cos={round(float(best['cosine_sim']),3)}, fuzz={round(float(best['fuzz_score']),3)})")
+    print("Decision :", verdict)
+
+    print(f"\nTOP-{TOPK} кандидатов:")
+    _print_topk_table(top)
+    print("\n" + "-" * 70 + "\n")
+
+
+# ---------------------------------------------------------
+# Вариант B (ЗАКОММЕНТИРОВАН): ipywidgets UI (для презентации)
+# ---------------------------------------------------------
+# import ipywidgets as widgets
+# from IPython.display import display, clear_output
+#
+# AUTO_THRESHOLD = 0.85
+# TOPK = 5
+#
+# txt = widgets.Text(
+#     value='',
+#     placeholder='Например: Невский проспе4и, 5, Санкт - Петербург',
+#     description='Адрес:',
+#     layout=widgets.Layout(width='900px')
+# )
+#
+# btn = widgets.Button(description='Найти', button_style='primary')
+# out = widgets.Output()
+#
+# def on_click(_):
+#     with out:
+#         clear_output()
+#         q = txt.value.strip()
+#         if not q:
+#             print("Введите адрес.")
+#             return
+#
+#         top = matcher.match_one_topk(q, k=TOPK)
+#         best = top.iloc[0]
+#
+#         verdict = "✅ AUTO-MATCH" if float(best["final_score"]) >= AUTO_THRESHOLD else "⚠️ MANUAL REVIEW"
+#         print("Query    :", q)
+#         print("Best     :", best["candidate"])
+#         print("Score    :", round(float(best["final_score"]), 3),
+#               f"(cos={round(float(best['cosine_sim']),3)}, fuzz={round(float(best['fuzz_score']),3)})")
+#         print("Decision :", verdict)
+#
+#         print(f"\nTOP-{TOPK} кандидатов:")
+#         df_show = top.copy()
+#         df_show["cosine_sim"] = df_show["cosine_sim"].map(lambda x: round(float(x), 3))
+#         df_show["fuzz_score"] = df_show["fuzz_score"].map(lambda x: round(float(x), 3))
+#         df_show["final_score"] = df_show["final_score"].map(lambda x: round(float(x), 3))
+#         display(df_show[["final_score", "cosine_sim", "fuzz_score", "candidate"]])
+#
+# btn.on_click(on_click)
+# display(widgets.VBox([txt, btn, out]))
