@@ -263,19 +263,78 @@ print(" query:", sample_query)
 print(" best :", sample_best)
 print(" score:", round(float(sample_score), 3))
 
+
 # =========================================================
 # Step 5: Interactive demo (A active, B commented)
 # =========================================================
 
+# --- pretty diff highlight helpers (HTML) ---
+import html as _html
+import difflib
+from IPython.display import display, HTML
+
+
+def _highlight_diff_html(a: str, b: str) -> str:
+    """Character-level diff with HTML highlighting.
+
+    - Deletions/replacements from A are shown red with strikethrough
+    - Insertions/replacements into B are shown green
+    """
+    a = "" if a is None else str(a)
+    b = "" if b is None else str(b)
+
+    sm = difflib.SequenceMatcher(a=a, b=b)
+
+    def esc(s: str) -> str:
+        return _html.escape(s).replace(" ", "&nbsp;")
+
+    a_out, b_out = [], []
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        a_chunk = esc(a[i1:i2])
+        b_chunk = esc(b[j1:j2])
+
+        if tag == "equal":
+            a_out.append(a_chunk)
+            b_out.append(b_chunk)
+        elif tag == "delete":
+            a_out.append(
+                f"<span style='background:#ffd6d6;text-decoration:line-through;'>{a_chunk}</span>"
+            )
+        elif tag == "insert":
+            b_out.append(f"<span style='background:#d7ffd7;'>{b_chunk}</span>")
+        elif tag == "replace":
+            a_out.append(
+                f"<span style='background:#ffd6d6;text-decoration:line-through;'>{a_chunk}</span>"
+            )
+            b_out.append(f"<span style='background:#d7ffd7;'>{b_chunk}</span>")
+
+    box = """
+    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+                font-size: 14px; line-height: 1.5; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px;">
+      <div style="margin-bottom:6px;"><b>Query</b>: {A}</div>
+      <div><b>Best</b>&nbsp;: {B}</div>
+      <div style="margin-top:8px; color:#6b7280; font-size:12px;">
+        <span style="background:#d7ffd7; padding:2px 6px; border-radius:6px;">вставки</span>
+        <span style="background:#ffd6d6; padding:2px 6px; border-radius:6px; margin-left:6px;">удаления/замены</span>
+      </div>
+    </div>
+    """
+    return box.format(A="".join(a_out), B="".join(b_out))
+
+
+def show_diff(a: str, b: str, title: str = "Diff (query vs best)") -> None:
+    print(f"\n{title}:")
+    display(HTML(_highlight_diff_html(a, b)))
+
+
 AUTO_THRESHOLD = 0.85  # порог авто-принятия матча (для демо можно менять)
 TOPK = 5               # показываем TOP-5 кандидатов
 
+
 def _print_topk_table(df_topk: pd.DataFrame) -> None:
-    # красивый вывод в Colab
     if df_topk is None or len(df_topk) == 0:
         print("Нет кандидатов.")
         return
-
     df_show = df_topk.copy()
     df_show["cosine_sim"] = df_show["cosine_sim"].map(lambda x: round(float(x), 3))
     df_show["fuzz_score"] = df_show["fuzz_score"].map(lambda x: round(float(x), 3))
@@ -296,19 +355,28 @@ while True:
         print("Выход из демо.")
         break
 
-    # TOP-5 кандидатов
     top = matcher.match_one_topk(user_q, k=TOPK)
-
-    # лучший (top-1)
     best = top.iloc[0]
+
     verdict = "✅ AUTO-MATCH" if float(best["final_score"]) >= AUTO_THRESHOLD else "⚠️ MANUAL REVIEW"
 
     print("\n--- Результат ---")
     print("Query    :", user_q)
     print("Best     :", best["candidate"])
-    print("Score    :", round(float(best["final_score"]), 3),
-          f"(cos={round(float(best['cosine_sim']),3)}, fuzz={round(float(best['fuzz_score']),3)})")
+    print(
+        "Score    :",
+        round(float(best["final_score"]), 3),
+        f"(cos={round(float(best['cosine_sim']),3)}, fuzz={round(float(best['fuzz_score']),3)})",
+    )
     print("Decision :", verdict)
+
+    # Подсветка различий (сырые строки + нормализованные)
+    show_diff(user_q, str(best["candidate"]), title="Diff (RAW)")
+    show_diff(
+        normalize_ru_address(user_q),
+        normalize_ru_address(str(best["candidate"])),
+        title="Diff (NORMALIZED)",
+    )
 
     print(f"\nTOP-{TOPK} кандидатов:")
     _print_topk_table(top)
@@ -339,25 +407,31 @@ while True:
 #         clear_output()
 #         q = txt.value.strip()
 #         if not q:
-#             print("Введите адрес.")
+#             print('Введите адрес.')
 #             return
 #
 #         top = matcher.match_one_topk(q, k=TOPK)
 #         best = top.iloc[0]
+#         verdict = '✅ AUTO-MATCH' if float(best['final_score']) >= AUTO_THRESHOLD else '⚠️ MANUAL REVIEW'
 #
-#         verdict = "✅ AUTO-MATCH" if float(best["final_score"]) >= AUTO_THRESHOLD else "⚠️ MANUAL REVIEW"
-#         print("Query    :", q)
-#         print("Best     :", best["candidate"])
-#         print("Score    :", round(float(best["final_score"]), 3),
-#               f"(cos={round(float(best['cosine_sim']),3)}, fuzz={round(float(best['fuzz_score']),3)})")
-#         print("Decision :", verdict)
+#         print('Query    :', q)
+#         print('Best     :', best['candidate'])
+#         print(
+#             'Score    :',
+#             round(float(best['final_score']), 3),
+#             f"(cos={round(float(best['cosine_sim']),3)}, fuzz={round(float(best['fuzz_score']),3)})",
+#         )
+#         print('Decision :', verdict)
+#
+#         show_diff(q, str(best['candidate']), title='Diff (RAW)')
+#         show_diff(normalize_ru_address(q), normalize_ru_address(str(best['candidate'])), title='Diff (NORMALIZED)')
 #
 #         print(f"\nTOP-{TOPK} кандидатов:")
 #         df_show = top.copy()
-#         df_show["cosine_sim"] = df_show["cosine_sim"].map(lambda x: round(float(x), 3))
-#         df_show["fuzz_score"] = df_show["fuzz_score"].map(lambda x: round(float(x), 3))
-#         df_show["final_score"] = df_show["final_score"].map(lambda x: round(float(x), 3))
-#         display(df_show[["final_score", "cosine_sim", "fuzz_score", "candidate"]])
+#         df_show['cosine_sim'] = df_show['cosine_sim'].map(lambda x: round(float(x), 3))
+#         df_show['fuzz_score'] = df_show['fuzz_score'].map(lambda x: round(float(x), 3))
+#         df_show['final_score'] = df_show['final_score'].map(lambda x: round(float(x), 3))
+#         display(df_show[['final_score', 'cosine_sim', 'fuzz_score', 'candidate']])
 #
 # btn.on_click(on_click)
 # display(widgets.VBox([txt, btn, out]))
