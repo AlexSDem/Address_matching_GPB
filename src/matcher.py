@@ -123,6 +123,47 @@ class AddressMatcher:
             best_index=best_i,
         )
 
+        def match_one_topk(self, query: str, k: Optional[int] = None) -> pd.DataFrame:
+        """
+        Return top-k candidates with cosine/fuzz/final scores.
+        Useful for demos to show alternative matches.
+        """
+        self._check_fitted()
+        k = int(k or self.top_k)
+        k = max(1, k)
+
+        q_raw = str(query)
+        q = self._prep(q_raw)
+        q_vec = self.vectorizer.transform([q])
+
+        n_neighbors = min(k, len(self._ref))
+        distances, indices = self.nn.kneighbors(q_vec, n_neighbors=n_neighbors)
+
+        distances = distances.flatten()
+        indices = indices.flatten()
+        cos_sims = 1.0 - distances
+
+        rows = []
+        for idx, cos in zip(indices, cos_sims):
+            idx = int(idx)
+            ref_raw = str(self._ref.iloc[idx])
+            ref_prep = str(self._ref_prep.iloc[idx])
+
+            f = fuzz.token_sort_ratio(q, ref_prep) / 100.0
+            final = (self.w_cosine * float(cos) + self.w_fuzz * float(f)) / (self.w_cosine + self.w_fuzz)
+
+            rows.append(
+                {
+                    "candidate": ref_raw,
+                    "cosine_sim": float(cos),
+                    "fuzz_score": float(f),
+                    "final_score": float(final),
+                    "ref_index": idx,
+                }
+            )
+
+        return pd.DataFrame(rows).sort_values("final_score", ascending=False).reset_index(drop=True)
+
     def match_batch(self, queries: Sequence[str]) -> pd.DataFrame:
         """Match a batch. Returns a DataFrame with columns:
         query, best, cosine_sim, fuzz_score, final_score, best_index
